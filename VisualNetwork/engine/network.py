@@ -8,7 +8,6 @@ class NeuralNetworkEngine:
         self.model = None
 
     def build_model(self, layers_config, input_dim):
-        """Construit dynamiquement le réseau PyTorch selon l'architecture visuelle"""
         layers_list = []
         current_dim = input_dim
 
@@ -31,65 +30,51 @@ class NeuralNetworkEngine:
         self.model = nn.Sequential(*layers_list)
 
     def train_network(self, layers_config, X, Y, lr, epochs, loss_name):
-        """Alias compatible pour l'entraînement avec enregistrement d'historique"""
         return self.train_and_record_history(layers_config, X, Y, lr, epochs, loss_name)
 
     def train_and_record_history(self, layers_config, X, Y, lr, epochs, loss_name):
-        """Entraîne le réseau et enregistre l'historique complet de chaque epoch pour le replay"""
         if not self.model:
             return []
 
-        if loss_name == "MAE":
-            criterion = nn.L1Loss()
-        else:
-            criterion = nn.MSELoss()
-
+        criterion = nn.L1Loss() if loss_name == "MAE" else nn.MSELoss()
         optimizer = optim.SGD(self.model.parameters(), lr=lr)
         history = []
+
+        expected_in = self.model[0].in_features
+        expected_out = self.model[-1].out_features if isinstance(self.model[-1], nn.Linear) else self.model[-2].out_features
+
+        inputs = X.clone()
+        if inputs.shape[1] < expected_in:
+            inputs = torch.cat([inputs, torch.zeros(1, expected_in - inputs.shape[1])], dim=1)
+        else:
+            inputs = inputs[:, :expected_in]
+
+        targets = Y.clone()
+        if targets.shape[1] < expected_out:
+            targets = torch.cat([targets, torch.zeros(1, expected_out - targets.shape[1])], dim=1)
+        else:
+            targets = targets[:, :expected_out]
 
         self.model.train()
         for epoch in range(epochs):
             optimizer.zero_grad()
-            in_vals = [n.value for n in layers_config[0].neurons]
-            inputs = torch.tensor([in_vals], dtype=torch.float32)
             
-            expected_in = self.model[0].in_features
-            if inputs.shape[1] != expected_in:
-                if inputs.shape[1] < expected_in:
-                    inputs = torch.cat([inputs, torch.zeros(1, expected_in - inputs.shape[1])], dim=1)
-                else:
-                    inputs = inputs[:, :expected_in]
-
             outputs = self.model(inputs)
-            
-            expected_out = self.model[-1].out_features if isinstance(self.model[-1], nn.Linear) else self.model[-2].out_features
-            if Y.shape[1] != expected_out:
-                target = torch.zeros(1, expected_out)
-                target[0, 0] = Y[0, 0] if Y.numel() > 0 else 0.0
-            else:
-                target = Y[0:1]
-
-            loss = criterion(outputs, target)
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
 
-            state = self.capture_current_state(layers_config)
+            # On capture l'état juste après la mise à jour des poids pour avoir les gradients
+            state = self.capture_current_state(layers_config, inputs)
             history.append(state)
 
         return history
 
-    def capture_current_state(self, layers_config):
-        """Capture les poids et activations du modèle à l'instant T"""
+    def capture_current_state(self, layers_config, inputs):
         self.model.eval()
         with torch.no_grad():
-            in_vals = [n.value for n in layers_config[0].neurons]
-            x = torch.tensor([in_vals], dtype=torch.float32)
-            expected_in = self.model[0].in_features
-            if x.shape[1] != expected_in:
-                x = x[:, :expected_in] if x.shape[1] > expected_in else torch.cat([x, torch.zeros(1, expected_in - x.shape[1])], dim=1)
-
-            activations = {0: in_vals}
-            sub_x = x
+            activations = {0: inputs[0].tolist()}
+            sub_x = inputs
             linear_counter = 0
 
             for idx in range(1, len(layers_config)):
@@ -112,15 +97,33 @@ class NeuralNetworkEngine:
                     linear_counter += 1
 
             weights_snapshots = []
+            biases_snapshots = []
+            weights_grads = [] # NOUVEAU : Capture des gradients
+
             for m in self.model:
                 if isinstance(m, nn.Linear):
                     weights_snapshots.append(m.weight.detach().clone())
+                    biases_snapshots.append(m.bias.detach().clone())
+                    
+                    # On sécurise au cas où il n'y a pas encore de gradient
+                    if m.weight.grad is not None:
+                        weights_grads.append(m.weight.grad.detach().clone())
+                    else:
+                        weights_grads.append(torch.zeros_like(m.weight))
 
             return {
                 "activations": activations,
-                "weights": weights_snapshots
+                "weights": weights_snapshots,
+                "biases": biases_snapshots,
+                "grads": weights_grads
             }
 
     def get_forward_activations(self, layers_config):
-        state = self.capture_current_state(layers_config)
+        in_vals = [n.value for n in layers_config[0].neurons]
+        inputs = torch.tensor([in_vals], dtype=torch.float32)
+        expected_in = self.model[0].in_features
+        if inputs.shape[1] != expected_in:
+            inputs = inputs[:, :expected_in] if inputs.shape[1] > expected_in else torch.cat([inputs, torch.zeros(1, expected_in - inputs.shape[1])], dim=1)
+            
+        state = self.capture_current_state(layers_config, inputs)
         return state["activations"]

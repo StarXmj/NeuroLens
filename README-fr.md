@@ -3,7 +3,7 @@
 
 ```markdown
 [🇬🇧 English](README.md) | [🇫🇷 Français](README-fr.md) | [🇪🇸 Español](README-es.md)
-
+> **⚠️ Avertissement de version Alpha :** NeuroLens est actuellement en phase Alpha. Le logiciel est toujours en cours de développement et n'est pas terminé. Vous pouvez rencontrer des bugs, des fonctionnalités incomplètes ou quelques incohérences mathématiques.
 # 🧠 NeuroLens : Visualisateur Interactif de Réseaux de Neurones
 
 Bienvenue dans **NeuroLens**, un outil pédagogique et interactif conçu pour démystifier le fonctionnement des réseaux de neurones. Construit avec Python, Pygame-CE et PyTorch, NeuroLens fait le pont entre la théorie mathématique abstraite et la pratique visuelle.
@@ -28,3 +28,6 @@ Ce projet utilise `uv` pour une gestion ultrarapide des dépendances Python.
    ```bash
    git clone [https://github.com/StarXmj/NeuroLens.git](https://github.com/StarXmj/NeuroLens.git)
    cd NeuroLens
+2. Installez les dépendances instantanément avec `uv` :
+   ```bash
+   uv pip install torch pygame-ce matplotlib --extra-index-url [https://download.pytorch.org/whl/cpu](https://download.pytorch.org/whl/cpu)

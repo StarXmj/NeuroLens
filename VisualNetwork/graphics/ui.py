@@ -1,188 +1,160 @@
 # graphics/ui.py
 import pygame
-from config.settings import *
 
 class Tab:
-    def __init__(self, x, y, width, height, name, is_active=False):
-        self.rect = pygame.Rect(x, y, width, height)
+    def __init__(self, x, y, w, h, name, is_active=False):
+        self.rect = pygame.Rect(x, y, w, h)
         self.name = name
         self.is_active = is_active
 
-    def draw(self, screen, font):
-        color = COLOR_TAB_ACTIVE if self.is_active else COLOR_TAB_INACTIVE
-        pygame.draw.rect(screen, color, self.rect, border_radius=5)
-        text = font.render(self.name, True, COLOR_TEXT)
-        screen.blit(text, (self.rect.x + 10, self.rect.y + 5))
+    def draw(self, surface, font):
+        color = (100, 100, 100) if self.is_active else (60, 60, 60)
+        pygame.draw.rect(surface, color, self.rect, border_radius=5)
+        text = font.render(self.name, True, (255, 255, 255))
+        surface.blit(text, (self.rect.x + (self.rect.width - text.get_width())//2, self.rect.y + 5))
 
 class DraggableItem:
-    def __init__(self, x, y, width, height, name, default_nodes, activations):
-        self.rect = pygame.Rect(x, y, width, height)
+    def __init__(self, x, y, w, h, name, default_nodes, activations):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.start_x, self.start_y = x, y
         self.name = name
         self.default_nodes = default_nodes
-        
-        # --- GESTION DU MENU RETRACTABLE ---
         self.activations = activations
-        self.selected_act = activations[0] if activations else "Entrée"
+        self.selected_act = activations[0] if activations else ""
         self.is_expanded = False
-        self.arrow_rect = pygame.Rect(x + 10, y + 10, 20, 20) # Zone cliquable de la flèche à gauche
-        self.option_rects = []
-        
         self.is_dragging = False
         self.offset_x, self.offset_y = 0, 0
-        self.start_x, self.start_y = x, y
         
-        self.btn_minus = pygame.Rect(x + 50, y + 35, 20, 20)
-        self.btn_plus = pygame.Rect(x + width - 30, y + 35, 20, 20)
+        self.btn_minus = pygame.Rect(self.rect.x + 10, self.rect.y + 35, 24, 24)
+        self.btn_plus = pygame.Rect(self.rect.x + self.rect.width - 34, self.rect.y + 35, 24, 24)
+        self.arrow_rect = pygame.Rect(self.rect.right - 25, self.rect.y + 5, 20, 20)
+        self.option_rects = []
 
     def update_position(self, x, y):
         self.rect.x, self.rect.y = x, y
-        self.arrow_rect.x, self.arrow_rect.y = x + 10, y + 10
-        self.btn_minus.x, self.btn_minus.y = x + 50, y + 35
-        self.btn_plus.x, self.btn_plus.y = x + self.rect.width - 30, y + 35
-        
-        # Recalcule la position des options du menu si ouvert
-        self.option_rects = []
-        if self.is_expanded:
-            for i in range(len(self.activations)):
-                self.option_rects.append(
-                    pygame.Rect(x + 10, y + self.rect.height + 5 + (i * 28), self.rect.width - 20, 25)
-                )
+        self.btn_minus.x, self.btn_minus.y = x + 10, y + 35
+        self.btn_plus.x, self.btn_plus.y = x + self.rect.width - 34, y + 35
+        self.arrow_rect.x, self.arrow_rect.y = self.rect.right - 25, y + 5
 
-    def draw(self, screen, font):
-        # 1. Le bloc principal
-        pygame.draw.rect(screen, COLOR_DRAG_ITEM, self.rect, border_radius=8)
+    def draw(self, surface, font):
+        pygame.draw.rect(surface, (70, 130, 180), self.rect, border_radius=8)
+        title = f"{self.name} : {self.selected_act}" if self.selected_act else self.name
+        surface.blit(font.render(title, True, (255, 255, 255)), (self.rect.x + 10, self.rect.y + 5))
         
-        # 2. La petite flèche géométrique
         if self.activations:
-            cx, cy = self.arrow_rect.x + 5, self.arrow_rect.y + 5
-            if self.is_expanded: # Flèche vers le bas
-                pygame.draw.polygon(screen, COLOR_TEXT, [(cx, cy+2), (cx+12, cy+2), (cx+6, cy+10)])
-            else: # Flèche vers la droite
-                pygame.draw.polygon(screen, COLOR_TEXT, [(cx+2, cy-2), (cx+10, cy+4), (cx+2, cy+10)])
+            arrow = "v" if self.is_expanded else ">"
+            surface.blit(font.render(arrow, True, (255, 255, 255)), (self.arrow_rect.x + 5, self.arrow_rect.y))
+
+        pygame.draw.rect(surface, (200, 50, 50), self.btn_minus, border_radius=4)
+        surface.blit(font.render("-", True, (255, 255, 255)), (self.btn_minus.x + 8, self.btn_minus.y + 2))
         
-        # 3. Textes
-        title = font.render(f"{self.name} : {self.selected_act}", True, COLOR_TEXT)
-        screen.blit(title, (self.rect.x + 35, self.rect.y + 7))
+        nodes_txt = font.render(f"Neurons: {self.default_nodes}", True, (255, 255, 255))
+        text_x = self.btn_minus.right + ((self.btn_plus.left - self.btn_minus.right) - nodes_txt.get_width()) // 2
+        surface.blit(nodes_txt, (text_x, self.rect.y + 37))
         
-        nodes_text = font.render(f"Neurones: {self.default_nodes}", True, COLOR_TEXT)
-        screen.blit(nodes_text, (self.rect.x + 80, self.rect.y + 35))
-        
-        # 4. Boutons + / -
-        pygame.draw.rect(screen, COLOR_BTN_MINUS, self.btn_minus, border_radius=4)
-        screen.blit(font.render("-", True, COLOR_TEXT), (self.btn_minus.x + 6, self.btn_minus.y - 2))
-        pygame.draw.rect(screen, COLOR_BTN_PLUS, self.btn_plus, border_radius=4)
-        screen.blit(font.render("+", True, COLOR_TEXT), (self.btn_plus.x + 4, self.btn_plus.y - 2))
-        
-        # 5. Dessin du sous-menu déroulant (seulement s'il n'est pas en train d'être glissé)
-        if self.is_expanded and not self.is_dragging:
-            for i, rect in enumerate(self.option_rects):
-                act_name = self.activations[i]
-                # Utilise la couleur du dictionnaire pour le fond du bouton !
-                couleur_fond = DICT_COULEURS_ACTIVATION.get(act_name, COLOR_DROPDOWN)
-                pygame.draw.rect(screen, couleur_fond, rect, border_radius=4)
-                
-                act_text = font.render(act_name, True, COLOR_TEXT)
-                screen.blit(act_text, (rect.x + 10, rect.y + 2))
+        pygame.draw.rect(surface, (50, 200, 50), self.btn_plus, border_radius=4)
+        surface.blit(font.render("+", True, (255, 255, 255)), (self.btn_plus.x + 6, self.btn_plus.y + 2))
+
+        if self.is_expanded:
+            self.option_rects = []
+            oy = self.rect.bottom + 2
+            for act in self.activations:
+                r = pygame.Rect(self.rect.x, oy, self.rect.width, 25)
+                pygame.draw.rect(surface, (100, 100, 120), r, border_radius=4)
+                surface.blit(font.render(act, True, (255,255,255)), (r.x + 10, r.y + 2))
+                self.option_rects.append(r)
+                oy += 27
 
 class TextInput:
-    def __init__(self, x, y, width, height, name, text_default="", input_type="float", disabled=False, help_text=""):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.name = name
-        self.text = str(text_default)
+    def __init__(self, x, y, w, h, label, default_text, val_type="float", disabled=False, help_text=""):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.label = label
+        self.text = default_text
+        self.val_type = val_type
         self.active = False
-        self.color_active = (100, 150, 200)
-        self.color_inactive = (60, 60, 60)
-        self.color_disabled = (40, 40, 40)
-        self.input_type = input_type
         self.disabled = disabled
-        self.help_text = help_text # Le texte pédagogique en dessous
+        self.help_text = help_text
+        self.first_edit = False
 
     def handle_event(self, event):
-        if self.disabled: return # Si l'option est grisée, on ne fait rien
+        if self.disabled: return
         
         if event.type == pygame.MOUSEBUTTONDOWN:
+            was_active = self.active
             self.active = self.rect.collidepoint(event.pos)
+            if self.active and not was_active:
+                self.first_edit = True # Active la purge au premier caractère tapé
                 
         if event.type == pygame.KEYDOWN and self.active:
+            if self.first_edit and event.key not in (pygame.K_BACKSPACE, pygame.K_RETURN, pygame.K_ESCAPE):
+                self.text = "" # Efface automatiquement l'ancien texte
+            self.first_edit = False
+            
             if event.key == pygame.K_BACKSPACE:
                 self.text = self.text[:-1]
             else:
-                char = event.unicode
-                if self.input_type == "int" and char.isdigit():
-                    self.text += char
-                elif self.input_type == "float" and (char.isdigit() or (char == '.' and '.' not in self.text)):
-                    self.text += char
+                self.text += event.unicode
 
-    def draw(self, screen, font, small_font):
-        # Titre au-dessus
-        text_color = (120, 120, 120) if self.disabled else (200, 200, 200)
-        screen.blit(small_font.render(self.name, True, text_color), (self.rect.x, self.rect.y - 18))
-        
-        # Boîte de saisie
-        if self.disabled:
-            color = self.color_disabled
-        else:
-            color = self.color_active if self.active else self.color_inactive
-            
-        pygame.draw.rect(screen, color, self.rect, border_radius=4)
-        
-        # Texte à l'intérieur
-        txt_color = (100, 100, 100) if self.disabled else (255, 255, 255)
-        txt_surface = small_font.render(self.text, True, txt_color)
-        screen.blit(txt_surface, (self.rect.x + 5, self.rect.y + 4))
-        
-        # Affichage du texte pédagogique en dessous si présent
-        if self.help_text:
-            help_surface = small_font.render(self.help_text, True, (140, 140, 140))
-            screen.blit(help_surface, (self.rect.x, self.rect.y + self.rect.height + 2))
+    def draw(self, surface, font, small_font):
+        if self.label:
+            surface.blit(small_font.render(self.label, True, (200, 200, 200)), (self.rect.x, self.rect.y - 15))
+        color = (100, 100, 150) if self.active else (60, 60, 60)
+        pygame.draw.rect(surface, color, self.rect, border_radius=4)
+        txt_surf = font.render(self.text, True, (255, 255, 255) if not self.disabled else (150,150,150))
+        surface.blit(txt_surf, (self.rect.x + 5, self.rect.y + 2))
+        if self.disabled and self.help_text:
+            surface.blit(small_font.render(self.help_text, True, (150, 150, 150)), (self.rect.x, self.rect.bottom + 2))
+
 class Dropdown:
-    def __init__(self, x, y, width, height, name, options):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.name = name
+    def __init__(self, x, y, w, h, label, options):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.label = label
         self.options = options
         self.selected = options[0]
-        self.is_expanded = False
+        self.is_open = False
         self.option_rects = []
-        
+
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.is_expanded:
+            if self.is_open:
                 for i, r in enumerate(self.option_rects):
                     if r.collidepoint(event.pos):
                         self.selected = self.options[i]
-                        self.is_expanded = False
+                        self.is_open = False
                         return
-                self.is_expanded = False # Clic ailleurs = on ferme
+                self.is_open = False
             elif self.rect.collidepoint(event.pos):
-                self.is_expanded = True
+                self.is_open = True
 
-    def draw(self, screen, font, small_font):
-        screen.blit(small_font.render(self.name, True, (200, 200, 200)), (self.rect.x, self.rect.y - 18))
-        pygame.draw.rect(screen, (60, 90, 130), self.rect, border_radius=4)
-        screen.blit(small_font.render(self.selected + (" ▲" if self.is_expanded else " ▼"), True, (255,255,255)), (self.rect.x + 5, self.rect.y + 4))
+    def draw(self, surface, font, small_font):
+        if self.label:
+            surface.blit(small_font.render(self.label, True, (200, 200, 200)), (self.rect.x, self.rect.y - 15))
+        pygame.draw.rect(surface, (70, 100, 150), self.rect, border_radius=4)
+        surface.blit(font.render(f"{self.selected} v", True, (255, 255, 255)), (self.rect.x + 5, self.rect.y + 2))
         
-        # Dessin des options par-dessus le reste
-        self.option_rects = []
-        if self.is_expanded:
-            for i, opt in enumerate(self.options):
-                r = pygame.Rect(self.rect.x, self.rect.y + self.rect.height + i * 25, self.rect.width, 25)
+        if self.is_open:
+            self.option_rects = []
+            oy = self.rect.bottom
+            for opt in self.options:
+                r = pygame.Rect(self.rect.x, oy, self.rect.width, self.rect.height)
+                pygame.draw.rect(surface, (80, 110, 160), r)
+                pygame.draw.rect(surface, (50, 50, 50), r, 1)
+                surface.blit(font.render(opt, True, (255, 255, 255)), (r.x + 5, r.y + 2))
                 self.option_rects.append(r)
-                pygame.draw.rect(screen, (80, 110, 150), r)
-                pygame.draw.rect(screen, (40, 60, 90), r, 1) # Bordure
-                screen.blit(small_font.render(opt, True, (255,255,255)), (r.x + 5, r.y + 4))
+                oy += self.rect.height
 
 class Checkbox:
-    def __init__(self, x, y, size, name, checked=False):
+    def __init__(self, x, y, size, label, checked=False):
         self.rect = pygame.Rect(x, y, size, size)
-        self.name = name
+        self.label = label
         self.checked = checked
-        
+
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(event.pos):
             self.checked = not self.checked
-            
-    def draw(self, screen, font, small_font):
-        pygame.draw.rect(screen, (200, 200, 200), self.rect, border_radius=3)
+
+    def draw(self, surface, font, small_font):
+        pygame.draw.rect(surface, (200, 200, 200), self.rect, border_radius=3)
         if self.checked:
-            pygame.draw.rect(screen, (50, 200, 50), (self.rect.x+3, self.rect.y+3, self.rect.width-6, self.rect.height-6), border_radius=2)
-        screen.blit(small_font.render(self.name, True, (200, 200, 200)), (self.rect.x + self.rect.width + 10, self.rect.y))
+            pygame.draw.rect(surface, (50, 200, 50), self.rect.inflate(-4, -4), border_radius=2)
+        surface.blit(small_font.render(self.label, True, (200, 200, 200)), (self.rect.right + 10, self.rect.y))

@@ -24,5 +24,5 @@ class Layer:
     def __init__(self, name, nodes=DEFAULT_NODES, activation="ReLU"):
         self.name = name
         self.nodes = nodes
-        self.activation = "Entrée" if name == "Entrée" else activation
+        self.activation = "Input" if name == "Input" else activation
         self.neurons = [Neuron() for _ in range(nodes)]
